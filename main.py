@@ -18,7 +18,7 @@ class TechNewsBot:
             raise ValueError("請設置 GEMINI_API_KEY 環境變數")
         
         genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-2.5-flash')
         
         # 新聞來源
         self.news_sources = {
