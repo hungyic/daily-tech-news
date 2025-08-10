@@ -20,6 +20,10 @@ class TechNewsBot:
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel('gemini-2.5-flash')
         
+        # HackMD API 設定
+        self.hackmd_token = os.getenv('HACKMD_TOKEN')
+        self.hackmd_api_url = "https://api.hackmd.io/v1/notes"
+        
         # 新聞來源
         self.news_sources = {
             "TechCrunch": "https://techcrunch.com/feed/",
@@ -234,8 +238,45 @@ class TechNewsBot:
         
         return report
     
-    def send_email(self, report_content):
-        """發送郵件報告"""
+    def create_hackmd_note(self, content):
+        """建立 HackMD 筆記"""
+        print("📝 正在建立 HackMD 筆記...")
+        
+        if not self.hackmd_token:
+            print("⚠️  未設置 HACKMD_TOKEN，跳過 HackMD 建立")
+            return None
+        
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.hackmd_token}',
+                'Content-Type': 'application/json'
+            }
+            
+            data = {
+                'title': f'每日科技新聞摘要 - {datetime.now().strftime("%Y年%m月%d日")}',
+                'content': content,
+                'readPermission': 'guest',  # 任何人都可以讀取
+                'writePermission': 'owner',  # 只有擁有者可以編輯
+                'commentPermission': 'everyone'  # 任何人都可以留言
+            }
+            
+            response = requests.post(self.hackmd_api_url, headers=headers, json=data)
+            
+            if response.status_code == 201:
+                note_data = response.json()
+                hackmd_url = f"https://hackmd.io/{note_data['id']}"
+                print(f"✅ HackMD 筆記建立成功: {hackmd_url}")
+                return hackmd_url
+            else:
+                print(f"❌ HackMD API 錯誤: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ 建立 HackMD 筆記失敗: {e}")
+            return None
+    
+    def send_email_with_link(self, hackmd_url=None, report_content=None):
+        """發送包含 HackMD 連結的郵件"""
         print("📧 正在發送郵件...")
         
         try:
@@ -244,11 +285,143 @@ class TechNewsBot:
             msg['To'] = os.getenv('TO_EMAIL')
             msg['Subject'] = f"📰 每日科技新聞摘要 - {datetime.now().strftime('%Y-%m-%d')}"
             
-            # 轉換為 HTML
-            html_content = self.markdown_to_html(report_content)
+            if hackmd_url:
+                # 如果有 HackMD 連結，發送簡潔的郵件
+                email_content = f"""
+# 📰 每日科技新聞摘要已準備完成
+
+今天的科技新聞摘要已經自動生成並上傳至 HackMD。
+
+**🔗 點擊連結閱讀完整報告：**
+[{hackmd_url}]({hackmd_url})
+
+---
+
+**📊 報告特色：**
+- 🤖 AI 智能分類整理
+- 🌟 重點新聞精選
+- 🔮 科技趨勢分析
+- 📱 適合手機閱讀的格式
+
+**💡 提示：**
+- 可以在 HackMD 中留言討論
+- 支援全文搜尋
+- 可以複製、分享給其他人
+
+---
+
+*🤖 此郵件由自動化系統生成於 {datetime.now().strftime('%Y年%m月%d日 %H:%M')}*
+                """
+                
+                html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{ 
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; 
+            line-height: 1.6; 
+            max-width: 600px; 
+            margin: 0 auto; 
+            padding: 20px;
+            color: #333;
+            background-color: #f8f9fa;
+        }}
+        .container {{
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }}
+        h1 {{ 
+            color: #2c3e50; 
+            text-align: center;
+            margin-bottom: 10px;
+        }}
+        .link-button {{
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            display: block;
+            transition: all 0.3s ease;
+        }}
+        .link-button:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+        }}
+        .features {{
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }}
+        .tips {{
+            background: #e3f2fd;
+            padding: 15px;
+            border-left: 4px solid #2196f3;
+            border-radius: 4px;
+        }}
+        .footer {{
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 30px;
+            border-top: 1px solid #dee2e6;
+            padding-top: 20px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📰 每日科技新聞摘要已準備完成</h1>
+        
+        <p>今天的科技新聞摘要已經自動生成並上傳至 HackMD。</p>
+        
+        <a href="{hackmd_url}" class="link-button">
+            🔗 點擊此處閱讀完整報告
+        </a>
+        
+        <div class="features">
+            <h3>📊 報告特色：</h3>
+            <ul>
+                <li>🤖 AI 智能分類整理</li>
+                <li>🌟 重點新聞精選</li>
+                <li>🔮 科技趨勢分析</li>
+                <li>📱 適合手機閱讀的格式</li>
+            </ul>
+        </div>
+        
+        <div class="tips">
+            <h3>💡 使用提示：</h3>
+            <ul>
+                <li>可以在 HackMD 中留言討論</li>
+                <li>支援全文搜尋功能</li>
+                <li>可以複製、分享給其他人</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            🤖 此郵件由自動化系統生成於 {datetime.now().strftime('%Y年%m月%d日 %H:%M')}
+        </div>
+    </div>
+</body>
+</html>
+                """
+            else:
+                # 備用方案：直接發送 HTML 格式的報告
+                email_content = report_content
+                html_content = self.markdown_to_html(report_content)
             
-            # 添加純文字版本
-            text_part = MIMEText(report_content, 'plain', 'utf-8')
+            # 添加純文字和 HTML 版本
+            text_part = MIMEText(email_content, 'plain', 'utf-8')
             html_part = MIMEText(html_content, 'html', 'utf-8')
             
             msg.attach(text_part)
@@ -268,7 +441,7 @@ class TechNewsBot:
             return False
     
     def markdown_to_html(self, markdown_content):
-        """Markdown 轉 HTML"""
+        """Markdown 轉 HTML（備用方案）"""
         html = markdown_content
         
         # 基本轉換
@@ -346,11 +519,18 @@ async def main():
         # 儲存報告
         bot.save_report(report)
         
+        # 建立 HackMD 筆記
+        hackmd_url = bot.create_hackmd_note(report)
+        
         # 發送郵件
-        success = bot.send_email(report)
+        success = bot.send_email_with_link(hackmd_url, report)
         
         if success:
-            print("🎉 任務完成！新聞報告已成功生成並發送")
+            if hackmd_url:
+                print(f"🎉 任務完成！新聞報告已上傳至 HackMD 並發送連結")
+                print(f"📎 HackMD 連結: {hackmd_url}")
+            else:
+                print("🎉 任務完成！新聞報告已以 HTML 格式發送")
         else:
             print("⚠️  報告生成完成，但郵件發送失敗")
             
