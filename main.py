@@ -32,7 +32,9 @@ class TechNewsBot:
             "Wired": "https://www.wired.com/feed/rss",
             "MIT Technology Review": "https://www.technologyreview.com/feed/",
             "Hacker News": "https://hnrss.org/frontpage",
-            "IEEE Spectrum": "https://spectrum.ieee.org/rss"
+            "IEEE Spectrum": "https://spectrum.ieee.org/rss",
+            "iThome": "https://www.ithome.com.tw/",
+            "數位時代": "https://www.bnext.com.tw/"
         }
         
         # 創建報告目錄
