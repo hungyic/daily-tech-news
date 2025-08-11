@@ -34,8 +34,6 @@ class TechNewsBot:
             "MIT Technology Review": "https://www.technologyreview.com/feed/",
             "Hacker News": "https://hnrss.org/frontpage",
             "IEEE Spectrum": "https://spectrum.ieee.org/rss",
-            "iThome": "https://www.ithome.com.tw/",
-            "數位時代": "https://www.bnext.com.tw/",
 
             # 台灣本土來源
             "iThome": "https://feeds.feedburner.com/ithomeOnline",  # iThome 主要新聞
