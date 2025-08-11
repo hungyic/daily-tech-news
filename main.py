@@ -26,6 +26,7 @@ class TechNewsBot:
         
         # 新聞來源
         self.news_sources = {
+            # 國外來源
             "TechCrunch": "https://techcrunch.com/feed/",
             "The Verge": "https://www.theverge.com/rss/index.xml",
             "Ars Technica": "http://feeds.arstechnica.com/arstechnica/index",
@@ -34,7 +35,15 @@ class TechNewsBot:
             "Hacker News": "https://hnrss.org/frontpage",
             "IEEE Spectrum": "https://spectrum.ieee.org/rss",
             "iThome": "https://www.ithome.com.tw/",
-            "數位時代": "https://www.bnext.com.tw/"
+            "數位時代": "https://www.bnext.com.tw/",
+
+            # 台灣本土來源
+            "iThome": "https://feeds.feedburner.com/ithomeOnline",  # iThome 主要新聞
+            "iThome 資安": "https://feeds.feedburner.com/ithomeSecurity",  # iThome 資安新聞
+            "數位時代": "https://www.bnext.com.tw/rss/all",  # 數位時代
+            "網管人": "https://www.netadmin.com.tw/rss.aspx",  # 網管人
+            "INSIDE": "https://feeds.thenewslens.com/inside",  # INSIDE 硬塞的網路趨勢觀察
+            "科技新報": "https://technews.tw/feed/",  # 科技新報 TechNews
         }
         
         # 創建報告目錄
