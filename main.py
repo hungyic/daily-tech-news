@@ -253,7 +253,7 @@ class TechNewsBot:
             }
             
             data = {
-                'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y-%m-%d")}',
+                'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y%m%d")}',
                 'content': content,
                 'readPermission': 'guest',  # 任何人都可以讀取
                 'writePermission': 'owner',  # 只有擁有者可以編輯
@@ -444,16 +444,9 @@ class TechNewsBot:
             with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT', 587))) as server:
                 server.starttls()
                 server.login(os.getenv('EMAIL_USERNAME'), os.getenv('EMAIL_PASSWORD'))
-                
-                # 發送給所有收件人
-                for recipient in recipients:
-                    try:
-                        server.send_message(msg, to_addrs=[recipient])
-                        print(f"✅ 成功發送至: {recipient}")
-                    except Exception as e:
-                        print(f"❌ 發送至 {recipient} 失敗: {e}")
+                server.send_message(msg)
             
-            print("✅ 郵件發送程序完成！")
+            print("✅ 郵件發送成功！")
             return True
             
         except Exception as e:
