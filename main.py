@@ -253,7 +253,7 @@ class TechNewsBot:
             }
             
             data = {
-                'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y%m%d")}',
+                'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y-%m-%d")}',
                 'content': content,
                 'readPermission': 'guest',  # 任何人都可以讀取
                 'writePermission': 'owner',  # 只有擁有者可以編輯
