@@ -35,6 +35,7 @@ class TechNewsBot:
             "Hacker News": "https://hnrss.org/frontpage",
             "IEEE Spectrum": "https://spectrum.ieee.org/rss",
             "Cyber Security": "https://cybersecuritynews.com/feed/",
+            "BleepingComputer": "https://www.bleepingcomputer.com/feed/",
 
             # 台灣本土來源
             "iThome": "https://feeds.feedburner.com/ithomeOnline",  # iThome 主要新聞
