@@ -254,7 +254,7 @@ class TechNewsBot:
         print("📝 正在建立 HackMD 筆記...")
         
         if not self.hackmd_token:
-            print("⚠️  未設置 HACKMD_TOKEN，跳過 HackMD 建立")
+            print("⚠️ 未設定 HACKMD_TOKEN，跳過 HackMD 建立")
             return None
         
         try:
@@ -266,18 +266,35 @@ class TechNewsBot:
             data = {
                 'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y-%m-%d")}',
                 'content': content,
-                'readPermission': 'guest',  # 任何人都可以讀取
-                'writePermission': 'owner',  # 只有擁有者可以編輯
-                'commentPermission': 'everyone'  # 任何人都可以留言
+                'readPermission': 'guest',
+                'writePermission': 'owner',
+                'commentPermission': 'everyone'
             }
             
             response = requests.post(self.hackmd_api_url, headers=headers, json=data)
+            response_data = response.json()
             
-            if response.status_code == 201:
-                note_data = response.json()
-                hackmd_url = f"https://hackmd.io/{note_data['id']}"
-                print(f"✅ HackMD 筆記建立成功: {hackmd_url}")
-                return hackmd_url
+            print(f"🔍 API 響應狀態碼: {response.status_code}")
+            print(f"🔍 API 響應內容: {response_data}")
+            
+            # 修改狀態碼判斷邏輯
+            # 201: 創建成功
+            # 207: 多狀態（筆記創建成功但可能有其他警告，如資料夾添加失敗）
+            if response.status_code in [201, 207] and 'note' in response_data:
+                note_data = response_data['note']
+                if 'id' in note_data:
+                    hackmd_url = f"https://hackmd.io/{note_data['id']}"
+                    print(f"✅ HackMD 筆記建立成功: {hackmd_url}")
+                    
+                    # 如果是 207 狀態碼，額外記錄警告
+                    if response.status_code == 207:
+                        error_msg = response_data.get('error', '未知警告')
+                        print(f"⚠️ 警告: {error_msg}")
+                    
+                    return hackmd_url
+                else:
+                    print("❌ API 響應中缺少筆記 ID")
+                    return None
             else:
                 print(f"❌ HackMD API 錯誤: {response.status_code} - {response.text}")
                 return None
