@@ -280,16 +280,15 @@ class TechNewsBot:
             # 修改狀態碼判斷邏輯
             # 201: 創建成功
             # 207: 多狀態（筆記創建成功但可能有其他警告，如資料夾添加失敗）
-            if response.status_code in [201, 207] and 'note' in response_data:
-                note_data = response_data['note']
-                if 'id' in note_data:
-                    hackmd_url = f"https://hackmd.io/{note_data['id']}"
+            if response.status_code in [201, 207]:
+                if 'id' in response_data:
+                    note_id = response_data['id']
+                    hackmd_url = f"https://hackmd.io/{note_id}"
                     print(f"✅ HackMD 筆記建立成功: {hackmd_url}")
                     
                     # 如果是 207 狀態碼，額外記錄警告
                     if response.status_code == 207:
-                        error_msg = response_data.get('error', '未知警告')
-                        print(f"⚠️ 警告: {error_msg}")
+                        print(f"⚠️ 警告: 可能有部分功能未完成")
                     
                     return hackmd_url
                 else:
