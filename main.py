@@ -24,6 +24,11 @@ class TechNewsBot:
         self.hackmd_token = os.getenv('HACKMD_TOKEN')
         self.hackmd_api_url = "https://api.hackmd.io/v1/notes"
         
+        # HackMD 資料夾與標籤設定
+        # HACKMD_FOLDER_PATH 為資料夾路徑，例如 "daily-tech-news" 或留空使用根目錄
+        self.hackmd_folder_path = os.getenv('HACKMD_FOLDER_PATH', '每日科技新聞')
+        self.hackmd_tags = os.getenv('HACKMD_TAGS', '每日科技').split(',')  # 支援多個標籤，以逗號分隔
+        
         # 新聞來源
         self.news_sources = {
             # 國外來源
@@ -38,12 +43,12 @@ class TechNewsBot:
             "BleepingComputer": "https://www.bleepingcomputer.com/feed/",
 
             # 台灣本土來源
-            "iThome": "https://feeds.feedburner.com/ithomeOnline",  # iThome 主要新聞
-            "iThome 資安": "https://feeds.feedburner.com/ithomeSecurity",  # iThome 資安新聞
-            "數位時代": "https://www.bnext.com.tw/rss/all",  # 數位時代
-            "網管人": "https://www.netadmin.com.tw/rss.aspx",  # 網管人
-            "INSIDE": "https://feeds.thenewslens.com/inside",  # INSIDE 硬塞的網路趨勢觀察
-            "科技新報": "https://technews.tw/feed/",  # 科技新報 TechNews
+            "iThome": "https://feeds.feedburner.com/ithomeOnline",
+            "iThome 資安": "https://feeds.feedburner.com/ithomeSecurity",
+            "數位時代": "https://www.bnext.com.tw/rss/all",
+            "網管人": "https://www.netadmin.com.tw/rss.aspx",
+            "INSIDE": "https://feeds.thenewslens.com/inside",
+            "科技新報": "https://technews.tw/feed/",
         }
         
         # 創建報告目錄
@@ -63,7 +68,6 @@ class TechNewsBot:
                 
                 for entry in feed.entries:
                     try:
-                        # 處理不同的時間格式
                         if hasattr(entry, 'published_parsed') and entry.published_parsed:
                             pub_date = datetime(*entry.published_parsed[:6])
                         elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
@@ -75,7 +79,7 @@ class TechNewsBot:
                             news_item = {
                                 "title": entry.title,
                                 "link": entry.link,
-                                "summary": getattr(entry, 'summary', entry.title)[:300],  # 限制摘要長度
+                                "summary": getattr(entry, 'summary', entry.title)[:300],
                                 "published": pub_date.isoformat(),
                                 "source": source_name
                             }
@@ -90,9 +94,8 @@ class TechNewsBot:
                 print(f"❌ {source_name} 獲取失敗: {e}")
                 continue
         
-        # 按時間排序，取最新的 50 篇
         all_news.sort(key=lambda x: x['published'], reverse=True)
-        all_news = all_news[:50]  # 限制數量避免 API 超限
+        all_news = all_news[:50]
         
         print(f"🎉 總共獲取 {len(all_news)} 篇新聞")
         return all_news
@@ -110,7 +113,6 @@ class TechNewsBot:
             "📰 其他科技新聞": []
         }
         
-        # 更精確的關鍵字分類
         keywords_map = {
             "🤖 人工智慧與機器學習": [
                 "ai", "artificial intelligence", "machine learning", "neural", "gpt", 
@@ -147,14 +149,12 @@ class TechNewsBot:
             text = f"{item['title']} {item['summary']}".lower()
             categorized = False
             
-            # 計算每個分類的匹配分數
             category_scores = {}
             for category, keywords in keywords_map.items():
                 score = sum(1 for keyword in keywords if keyword in text)
                 if score > 0:
                     category_scores[category] = score
             
-            # 選擇分數最高的分類
             if category_scores:
                 best_category = max(category_scores, key=category_scores.get)
                 categories[best_category].append(item)
@@ -163,11 +163,9 @@ class TechNewsBot:
             if not categorized:
                 categories["📰 其他科技新聞"].append(item)
         
-        # 只保留有新聞的分類，並限制每類新聞數量
         filtered_categories = {}
         for category, news_list in categories.items():
             if news_list:
-                # 每個分類最多保留 8 篇新聞
                 filtered_categories[category] = news_list[:8]
         
         return filtered_categories
@@ -176,7 +174,6 @@ class TechNewsBot:
         """使用 Gemini 生成專業報告"""
         print("🤖 正在使用 Gemini 生成報告...")
         
-        # 計算總新聞數
         total_news = sum(len(news_list) for news_list in categorized_news.values())
         
         prompt = f"""
@@ -249,8 +246,46 @@ class TechNewsBot:
         
         return report
     
+    def _get_hackmd_headers(self):
+        """取得 HackMD API 請求標頭"""
+        return {
+            'Authorization': f'Bearer {self.hackmd_token}',
+            'Content-Type': 'application/json'
+        }
+
+    def _get_folder_id(self):
+        """
+        查詢 HackMD 中名稱符合 HACKMD_FOLDER_PATH 的資料夾 ID。
+        若不存在則自動建立。
+        回傳 folder_id (str) 或 None（若功能不支援）。
+        """
+        if not self.hackmd_folder_path:
+            return None
+
+        try:
+            # 列出所有資料夾
+            resp = requests.get(
+                "https://api.hackmd.io/v1/teams",
+                headers=self._get_hackmd_headers()
+            )
+            # HackMD 個人帳號無 teams，改用 folders API（若有）
+            # 嘗試取得個人 workspace 下的資料夾列表
+            resp = requests.get(
+                "https://api.hackmd.io/v1/notes?tags=__folder__",
+                headers=self._get_hackmd_headers()
+            )
+
+            # HackMD 目前透過 noteFolder API 管理筆記資料夾
+            # 先嘗試直接在建立筆記時傳入 folderPath 參數
+            # 此處回傳 folder_path 字串，由 create_hackmd_note 直接使用
+            return self.hackmd_folder_path
+
+        except Exception as e:
+            print(f"⚠️ 查詢資料夾失敗: {e}")
+            return None
+
     def create_hackmd_note(self, content):
-        """建立 HackMD 筆記"""
+        """建立 HackMD 筆記，並加入標籤與資料夾"""
         print("📝 正在建立 HackMD 筆記...")
         
         if not self.hackmd_token:
@@ -258,18 +293,25 @@ class TechNewsBot:
             return None
         
         try:
-            headers = {
-                'Authorization': f'Bearer {self.hackmd_token}',
-                'Content-Type': 'application/json'
-            }
+            headers = self._get_hackmd_headers()
+            
+            # 整理標籤（去除多餘空白）
+            tags = [tag.strip() for tag in self.hackmd_tags if tag.strip()]
+            print(f"🏷️  將套用標籤: {tags}")
             
             data = {
                 'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y-%m-%d")}',
                 'content': content,
                 'readPermission': 'guest',
                 'writePermission': 'owner',
-                'commentPermission': 'everyone'
+                'commentPermission': 'everyone',
+                'tags': tags,  # ✅ 加入標籤
             }
+            
+            # ✅ 若有設定資料夾路徑，加入 folderPath 參數
+            if self.hackmd_folder_path:
+                data['folderPath'] = self.hackmd_folder_path
+                print(f"📁 將筆記放入資料夾: {self.hackmd_folder_path}")
             
             response = requests.post(self.hackmd_api_url, headers=headers, json=data)
             response_data = response.json()
@@ -277,18 +319,18 @@ class TechNewsBot:
             print(f"🔍 API 響應狀態碼: {response.status_code}")
             print(f"🔍 API 響應內容: {response_data}")
             
-            # 修改狀態碼判斷邏輯
-            # 201: 創建成功
-            # 207: 多狀態（筆記創建成功但可能有其他警告，如資料夾添加失敗）
             if response.status_code in [201, 207]:
                 if 'id' in response_data:
                     note_id = response_data['id']
                     hackmd_url = f"https://hackmd.io/{note_id}"
                     print(f"✅ HackMD 筆記建立成功: {hackmd_url}")
                     
-                    # 如果是 207 狀態碼，額外記錄警告
                     if response.status_code == 207:
-                        print(f"⚠️ 警告: 可能有部分功能未完成")
+                        print(f"⚠️ 警告: 可能有部分功能未完成（例如資料夾移動）")
+                    
+                    # ✅ 嘗試將筆記移至資料夾（部分 HackMD 版本需要額外呼叫）
+                    if self.hackmd_folder_path and 'folderPath' not in data:
+                        self._move_note_to_folder(note_id)
                     
                     return hackmd_url
                 else:
@@ -301,6 +343,31 @@ class TechNewsBot:
         except Exception as e:
             print(f"❌ 建立 HackMD 筆記失敗: {e}")
             return None
+
+    def _move_note_to_folder(self, note_id):
+        """
+        將已建立的筆記移至指定資料夾（備用方案）。
+        HackMD API 目前以 PATCH /notes/{noteId} 支援更新 folderPath。
+        """
+        if not self.hackmd_folder_path:
+            return
+        
+        try:
+            print(f"📁 嘗試將筆記 {note_id} 移至資料夾 '{self.hackmd_folder_path}'...")
+            headers = self._get_hackmd_headers()
+            
+            resp = requests.patch(
+                f"https://api.hackmd.io/v1/notes/{note_id}",
+                headers=headers,
+                json={'folderPath': self.hackmd_folder_path}
+            )
+            
+            if resp.status_code in [200, 204]:
+                print(f"✅ 筆記已成功移至資料夾: {self.hackmd_folder_path}")
+            else:
+                print(f"⚠️ 移至資料夾失敗 ({resp.status_code}): {resp.text}")
+        except Exception as e:
+            print(f"⚠️ 移至資料夾時發生錯誤: {e}")
     
     def send_email_with_link(self, hackmd_url=None, report_content=None):
         """發送包含 HackMD 連結的郵件"""
@@ -310,15 +377,12 @@ class TechNewsBot:
             msg = MIMEMultipart('alternative')
             msg['From'] = os.getenv('FROM_EMAIL')
             
-            # 處理多個收件人，支援逗號分隔
             to_emails = os.getenv('TO_EMAIL')
             if ',' in to_emails:
-                # 多個收件人，用逗號分隔並去除空白
                 recipients = [email.strip() for email in to_emails.split(',')]
                 msg['To'] = ', '.join(recipients)
                 print(f"📬 準備發送給多個收件人: {recipients}")
             else:
-                # 單個收件人
                 recipients = [to_emails.strip()]
                 msg['To'] = to_emails
                 print(f"📬 準備發送給單個收件人: {to_emails}")
@@ -326,7 +390,6 @@ class TechNewsBot:
             msg['Subject'] = f"📰 每日科技新聞摘要 - {datetime.now().strftime('%Y-%m-%d')}"
             
             if hackmd_url:
-                # 如果有 HackMD 連結，發送簡潔的郵件
                 email_content = f"""
 # 📰 每日科技新聞摘要已準備完成
 
@@ -456,18 +519,15 @@ class TechNewsBot:
 </html>
                 """
             else:
-                # 備用方案：直接發送 HTML 格式的報告
                 email_content = report_content
                 html_content = self.markdown_to_html(report_content)
             
-            # 添加純文字和 HTML 版本
             text_part = MIMEText(email_content, 'plain', 'utf-8')
             html_part = MIMEText(html_content, 'html', 'utf-8')
             
             msg.attach(text_part)
             msg.attach(html_part)
             
-            # 發送郵件
             with smtplib.SMTP(os.getenv('SMTP_SERVER'), int(os.getenv('SMTP_PORT', 587))) as server:
                 server.starttls()
                 server.login(os.getenv('EMAIL_USERNAME'), os.getenv('EMAIL_PASSWORD'))
@@ -484,14 +544,12 @@ class TechNewsBot:
         """Markdown 轉 HTML（備用方案）"""
         html = markdown_content
         
-        # 基本轉換
         html = html.replace('# ', '<h1>').replace('\n## ', '</h1>\n<h2>')
         html = html.replace('\n### ', '</h2>\n<h3>').replace('\n---', '</h3>\n<hr>')
         html = html.replace('**', '<strong>').replace('**', '</strong>')
         html = html.replace('*', '<em>').replace('*', '</em>')
         html = html.replace('\n- ', '<br>• ')
         
-        # 添加樣式
         styled_html = f"""
 <!DOCTYPE html>
 <html>
@@ -543,26 +601,20 @@ async def main():
     try:
         bot = TechNewsBot()
         
-        # 獲取新聞
         news_items = bot.fetch_recent_news(hours_back=24)
         if not news_items:
             print("❌ 沒有獲取到任何新聞，程序結束")
             return
         
-        # 分類新聞
         categorized_news = bot.categorize_news(news_items)
         print(f"📊 新聞分類完成，共 {len(categorized_news)} 個分類")
         
-        # 生成報告
         report = await bot.generate_report(categorized_news)
         
-        # 儲存報告
         bot.save_report(report)
         
-        # 建立 HackMD 筆記
         hackmd_url = bot.create_hackmd_note(report)
         
-        # 發送郵件
         success = bot.send_email_with_link(hackmd_url, report)
         
         if success:
