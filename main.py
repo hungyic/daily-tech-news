@@ -26,7 +26,7 @@ class TechNewsBot:
         
         # HackMD 資料夾與標籤設定
         # HACKMD_FOLDER_PATH 為資料夾路徑，例如 "daily-tech-news" 或留空使用根目錄
-        self.hackmd_folder_path = os.getenv('HACKMD_FOLDER_PATH', '每日科技新聞')
+        self.hackmd_folder_path = os.getenv('HACKMD_FOLDER_PATH', 'daily-tech-news')
         self.hackmd_tags = os.getenv('HACKMD_TAGS', '每日科技').split(',')  # 支援多個標籤，以逗號分隔
         
         # 新聞來源
@@ -284,8 +284,21 @@ class TechNewsBot:
             print(f"⚠️ 查詢資料夾失敗: {e}")
             return None
 
+    def _build_content_with_frontmatter(self, content):
+        """
+        在筆記內容前加入 YAML front matter，讓 HackMD 自動套用標籤。
+        格式範例：
+        ---
+        tags: 每日科技, 科技新聞
+        ---
+        """
+        tags = [tag.strip() for tag in self.hackmd_tags if tag.strip()]
+        tags_str = ', '.join(tags)
+        front_matter = f"---\ntags: {tags_str}\n---\n\n"
+        return front_matter + content
+
     def create_hackmd_note(self, content):
-        """建立 HackMD 筆記，並加入標籤與資料夾"""
+        """建立 HackMD 筆記，並透過 YAML front matter 加入標籤"""
         print("📝 正在建立 HackMD 筆記...")
         
         if not self.hackmd_token:
@@ -295,23 +308,19 @@ class TechNewsBot:
         try:
             headers = self._get_hackmd_headers()
             
-            # 整理標籤（去除多餘空白）
             tags = [tag.strip() for tag in self.hackmd_tags if tag.strip()]
-            print(f"🏷️  將套用標籤: {tags}")
+            print(f"🏷️  將套用標籤（YAML front matter）: {tags}")
+
+            # ✅ 將標籤寫入 YAML front matter（HackMD 個人版 API 不支援 folderPath）
+            content_with_tags = self._build_content_with_frontmatter(content)
             
             data = {
                 'title': f'每日科技新聞摘要_{datetime.now().strftime("%Y-%m-%d")}',
-                'content': content,
+                'content': content_with_tags,
                 'readPermission': 'guest',
                 'writePermission': 'owner',
                 'commentPermission': 'everyone',
-                'tags': tags,  # ✅ 加入標籤
             }
-            
-            # ✅ 若有設定資料夾路徑，加入 folderPath 參數
-            if self.hackmd_folder_path:
-                data['folderPath'] = self.hackmd_folder_path
-                print(f"📁 將筆記放入資料夾: {self.hackmd_folder_path}")
             
             response = requests.post(self.hackmd_api_url, headers=headers, json=data)
             response_data = response.json()
@@ -319,19 +328,14 @@ class TechNewsBot:
             print(f"🔍 API 響應狀態碼: {response.status_code}")
             print(f"🔍 API 響應內容: {response_data}")
             
-            if response.status_code in [201, 207]:
+            if response.status_code in [200, 201, 207]:
                 if 'id' in response_data:
                     note_id = response_data['id']
                     hackmd_url = f"https://hackmd.io/{note_id}"
                     print(f"✅ HackMD 筆記建立成功: {hackmd_url}")
-                    
-                    if response.status_code == 207:
-                        print(f"⚠️ 警告: 可能有部分功能未完成（例如資料夾移動）")
-                    
-                    # ✅ 嘗試將筆記移至資料夾（部分 HackMD 版本需要額外呼叫）
-                    if self.hackmd_folder_path and 'folderPath' not in data:
-                        self._move_note_to_folder(note_id)
-                    
+                    print(f"💡 提醒：HackMD 個人版 API 不支援自動指定資料夾，")
+                    print(f"   請在 HackMD 介面中手動將筆記移入「{self.hackmd_folder_path}」資料夾，")
+                    print(f"   或改用 HackMD Team workspace 以使用資料夾 API。")
                     return hackmd_url
                 else:
                     print("❌ API 響應中缺少筆記 ID")
